@@ -208,6 +208,74 @@ func findFiles(f *File, dirs []string) (*[]*File, int, bool) {
 
 const INDENT = "  "
 
+type FilePool struct {
+	files []File
+	index int
+}
+
+func NewFilePool() *FilePool {
+	return &FilePool{
+		files: make([]File, 15000, 15000),
+		index: -1,
+	}
+}
+
+func (p *FilePool) Get() interface{} {
+	p.index += 1
+	return &p.files[p.index]
+}
+
+func (w *Watcher) generate2() {
+	// pool
+	// filePool := sync.Pool{
+	// 	New: func() interface{} {
+	// 		return &File{}
+	// 	},
+	// }
+	filePool := NewFilePool()
+	//
+	w.files = make([]*File, 0, 1024)
+	for i := 0; i < len(w.dirs); i++ {
+		f := filePool.Get().(*File)
+		f.Name = w.dirs[i] // 绝对路径
+		f.Type = FileTypeDir
+		w.files = append(w.files, f)
+	}
+	// 遍历
+	if len(w.dirs) == 0 {
+		return
+	}
+
+	for i := 0; i < len(w.files); i++ {
+		f := w.files[i]
+		if f.Type != FileTypeDir {
+			continue
+		}
+		dirEntrys, err := os.ReadDir(f.Name)
+		if err != nil {
+			log.Printf("ERROR readdir error: %v", err)
+			return
+		}
+		for _, d := range dirEntrys {
+			// log.Printf("%v ==> %v", f.NameAbs, d.Name())
+			fi, err := d.Info()
+			if err != nil {
+				log.Printf("ERROR: d.Info() error: %v", err)
+				continue // TODO
+			}
+			newf := filePool.Get().(*File)
+			newf.Name = filepath.Join(f.Name, d.Name())
+			if fi.IsDir() {
+				newf.Type = FileTypeDir
+			} else {
+				newf.Type = FileTypeFile
+			}
+			w.files = append(w.files, newf)
+		}
+	}
+	// log.Printf("file count: %v", len(w.files))
+}
+
 func (w *Watcher) generate() {
 	w.files = make([]*File, len(w.dirs), len(w.dirs))
 	for i := 0; i < len(w.dirs); i++ {
@@ -225,12 +293,12 @@ func (w *Watcher) generate() {
 		update("", f, nil)
 	}
 	// log.Printf("generate success; enter handleSearch")
-	// 给search返回结果
-	for _, s := range w.searches {
-		w.handleSearch(s)
-	}
-	// debug
-	writeDB(w.files)
+	// // 给search返回结果
+	// for _, s := range w.searches {
+	// 	w.handleSearch(s)
+	// }
+	// // debug
+	// writeDB(w.files)
 }
 
 // 全量刷新

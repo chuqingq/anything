@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -75,14 +76,76 @@ func TestDir(t *testing.T) {
 func TestFindFiles(t *testing.T) {
 }
 
+func TestGenerate(t *testing.T) {
+	dirs := []string{"/usr/lib/go"} // "/mnt/d/temp/projects/anything" "/usr/lib/go"
+	w := &Watcher{
+		dirs: dirs,
+	}
+	w.generate2()
+}
+
 // TODO benchmark1：扫描go1.18的周期和最终内存大小
 func BenchmarkGenerate(b *testing.B) {
-	dirs := []string{"/mnt/d/temp/projects/anything"} // "/usr/lib/go"
+	dirs := []string{"/usr/lib/go"} // "/mnt/d/temp/projects/anything"
 	for n := 0; n < b.N; n++ {
 		w := &Watcher{
 			dirs: dirs,
 		}
-		w.generate()
+		w.generate2()
+	}
+}
+
+func generate2() {
+	const dir = "/usr/lib/go"
+
+	// files := make([]fs.FileInfo, 0)
+	// filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	// 	info, err := d.Info()
+	// 	if err != nil {
+	// 		log.Printf("info error: %v", err)
+	// 		return nil
+	// 	}
+	// 	files = append(files, info)
+	// 	return nil
+	// })
+	// 24.3
+
+	// files := make([]string, 0)
+	// filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	// 	files = append(files, path)
+	// 	return nil
+	// })
+	// 11.2us
+
+	type mystat struct {
+		path string
+		name string
+		d    fs.DirEntry
+	}
+	files := make([]mystat, 0)
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		files = append(files, mystat{path: path, name: d.Name(), d: d})
+		return nil
+	})
+	// 12.3us
+
+	// files := make([]fs.FileInfo, 0)
+	// filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+	// 	files = append(files, info)
+	// 	return nil
+	// })
+	// 22.0us
+
+	// log.Printf("%v", len(files))
+}
+
+func TestGenerate2(t *testing.T) {
+	generate2()
+}
+
+func BenchmarkGenerate2(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		generate2()
 	}
 }
 
