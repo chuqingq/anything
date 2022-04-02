@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rjeczalik/notify"
@@ -55,7 +56,7 @@ func (w *Watcher) Search(pattern string) []File {
 }
 
 // Watch 观察。结果有变化时会通过channel返回
-func (w *Watcher) Watch(pattern string) chan *[]File {
+func (w *Watcher) Watch(pattern string) chan []File {
 	patterns := parsePattern(pattern)
 	if patterns == nil {
 		return nil
@@ -64,14 +65,14 @@ func (w *Watcher) Watch(pattern string) chan *[]File {
 		pattern:  strings.Join(patterns, " "),
 		patterns: patterns,
 		// output:     make([]File, 0),
-		outputChan: make(chan *[]File, 1),
+		outputChan: make(chan []File, 1),
 	}
 	w.watchChan <- search
 	return search.outputChan
 }
 
 // StopWatch 停止观察。这里只发送停止请求，由内部协程处理。
-func (w *Watcher) StopWatch(outputChan chan *[]File) {
+func (w *Watcher) StopWatch(outputChan chan []File) {
 	watch := &Watch{
 		// 约定：patterns == nil 用于关闭watch
 		outputChan: outputChan,
@@ -91,8 +92,7 @@ type File struct {
 type Watch struct {
 	pattern    string // TODO 后续用于作为缓存的key
 	patterns   []string
-	output     []File // TODO 可以不要
-	outputChan chan *[]File
+	outputChan chan []File
 }
 
 func parsePattern(pattern string) []string {
@@ -122,7 +122,7 @@ func (w *Watcher) watch() {
 	for _, d := range w.dirs {
 		abspath := filepath.Join(d, "...") // , "..."
 		// TODO linux/inotify  不支持递归watch
-		// log.Printf("watch path: %v", abspath)
+		log.Printf("watch path: %v", abspath)
 		err := notify.Watch(abspath, w.notifyChan, notify.Create|notify.Remove|notify.Rename)
 		if err != nil {
 			log.Fatalf("ERROR watch() error: %v", err)
@@ -136,16 +136,24 @@ func (w *Watcher) generateAndLoop() {
 	w.loop()
 }
 
+var pool = &sync.Pool{
+	New: func() interface{} { return make([]File, 0) },
+}
+
 // 全量生成
 func (w *Watcher) generate() {
 	// log.Printf("generate")
+	pool.Put(w.files)
+	w.files = pool.Get().([]File)
 	w.files = w.files[:0]
+	// w.files = nil
 	for _, dir := range w.dirs {
 		filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			w.files = append(w.files, File{Path: path, Name: d.Name(), DirEntry: d})
 			return nil
 		})
 	}
+	// log.Printf("files: %s", w.files)
 }
 
 func (w *Watcher) loop() {
@@ -200,15 +208,17 @@ func isWatchAffectedByEvents(w *Watch, events []notify.EventInfo) bool {
 
 func (w *Watcher) handleWatch(watch *Watch) {
 	// log.Printf("handleSearch(%v)", watch.pattern)
-	watch.output = watch.output[:0]
+	output := pool.Get().([]File)
+	// output := make([]File, 0)
 	// 执行search请求
-	search(watch.patterns, w.files, &watch.output) // TODO 未优化
+	search(watch.patterns, w.files, &output) // TODO 未优化
 	// 发送search响应。不能阻塞
 	select {
-	case watch.outputChan <- &watch.output:
+	case watch.outputChan <- output:
 	default:
 		log.Printf("ERROR output error")
 	}
+	pool.Put(output)
 }
 
 func search(patterns []string, input []File, output *[]File) {

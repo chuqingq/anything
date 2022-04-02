@@ -16,10 +16,10 @@ import (
 func TestSearch(t *testing.T) {
 	cwd, _ := os.Getwd()
 	testfile1 := "testfile1"
-	os.Remove(testfile1)
-	defer os.Remove(testfile1)
 	testfile1abs := filepath.Join(cwd, testfile1)
 	log.Printf("testfile1abs: %v", testfile1abs)
+	os.Remove(testfile1abs)
+	defer os.Remove(testfile1abs)
 	// new
 	w := NewWatcher([]string{cwd})
 	defer w.Close()
@@ -29,7 +29,7 @@ func TestSearch(t *testing.T) {
 		log.Fatalf("search error 1")
 	}
 	// 2 创建文件
-	f, err := os.Create(testfile1)
+	f, err := os.Create(testfile1abs)
 	if err != nil {
 		t.Fatalf("create file error: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestSearch(t *testing.T) {
 		log.Fatalf("search error 2")
 	}
 	// 3 删除文件
-	os.Remove(testfile1)
+	os.Remove(testfile1abs)
 	time.Sleep(200 * time.Millisecond)
 	res = w.Search(testfile1)
 	if len(res) != 0 {
@@ -51,10 +51,10 @@ func TestSearch(t *testing.T) {
 func TestWatch(t *testing.T) {
 	cwd, _ := os.Getwd()
 	testfile1 := "testfile1"
-	os.Remove(testfile1)
-	defer os.Remove(testfile1)
 	testfile1abs := filepath.Join(cwd, testfile1)
 	log.Printf("testfile1abs: %v", testfile1abs)
+	os.Remove(testfile1abs)
+	defer os.Remove(testfile1abs)
 	// new
 	w := NewWatcher([]string{cwd})
 	defer w.Close()
@@ -65,7 +65,7 @@ func TestWatch(t *testing.T) {
 		log.Fatalf("search error 1")
 	}
 	// 2 创建文件
-	f, err := os.Create(testfile1)
+	f, err := os.Create(testfile1abs)
 	if err != nil {
 		t.Fatalf("create file error: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestWatch(t *testing.T) {
 		log.Fatalf("search error 2")
 	}
 	// 3 删除文件
-	os.Remove(testfile1)
+	os.Remove(testfile1abs)
 	succ = waitFor(w, ch, testfile1abs, false)
 	if !succ {
 		// log.Printf("search error 3")
@@ -127,10 +127,11 @@ func BenchmarkGenerate(b *testing.B) {
 		dirs: dirs,
 	}
 	for n := 0; n < b.N; n++ {
-		w.files = nil
+		// w.files = nil
 		w.generate()
 	}
 	// 13.2us
+	// 11.8us 复用[]File
 }
 
 // func TestOrder(t *testing.T) {
@@ -266,13 +267,13 @@ func BenchmarkMoveDir(b *testing.B) {
 }
 
 // 在timeout时间范围内，等待watcher根据file输出文件列表，然后确认findFiles中有path绝对路径
-func waitFor(w *Watcher, ch chan *[]File, path string, expectExist bool) bool {
+func waitFor(w *Watcher, ch chan []File, path string, expectExist bool) bool {
 	timer := time.After(1000 * time.Millisecond)
 	for {
 		select {
 		case res := <-ch:
 			found := false
-			for _, f := range *res {
+			for _, f := range res {
 				if f.Path == path {
 					found = true
 					break
