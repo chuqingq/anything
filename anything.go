@@ -138,6 +138,8 @@ func (w *Watcher) generateAndLoop() {
 
 // 全量生成
 func (w *Watcher) generate() {
+	// log.Printf("generate")
+	w.files = w.files[:0]
 	for _, dir := range w.dirs {
 		filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			w.files = append(w.files, File{Path: path, Name: d.Name(), DirEntry: d})
@@ -168,14 +170,15 @@ func (w *Watcher) loop() {
 			}
 		// 避免连续收到fsevent每次都全刷新
 		case <-time.After(100 * time.Millisecond):
+			// log.Printf("generate all")
 			// 如果变化，重新生成
 			if len(w.events) > 0 {
 				// 全量刷新
-				w.files = w.files[:0]
 				w.generate()
 				// 受影响的watch重新search
 				for _, watch := range w.watches {
 					if isWatchAffectedByEvents(watch, w.events) {
+						log.Printf("watch affected")
 						w.handleWatch(watch)
 					}
 				}
@@ -196,7 +199,8 @@ func isWatchAffectedByEvents(w *Watch, events []notify.EventInfo) bool {
 }
 
 func (w *Watcher) handleWatch(watch *Watch) {
-	log.Printf("handleSearch(%v)", watch.pattern)
+	// log.Printf("handleSearch(%v)", watch.pattern)
+	watch.output = watch.output[:0]
 	// 执行search请求
 	search(watch.patterns, w.files, &watch.output) // TODO 未优化
 	// 发送search响应。不能阻塞
