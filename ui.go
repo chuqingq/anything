@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"fyne.io/fyne/v2"
@@ -75,6 +76,9 @@ func main() {
 	}
 	entry.OnSubmitted = func(s string) {
 		log.Printf("OnSubmitted: %v", s)
+		if len(files) > 0 {
+			openDir(files[0].Path)
+		}
 	}
 	// open button
 	open := widget.NewButton("Open", func() {
@@ -99,4 +103,12 @@ func main() {
 	// w.SetFullScreen(true)
 	w.Canvas().Focus(entry)
 	w.ShowAndRun()
+}
+
+func openDir(file string) {
+	log.Printf("openDir: %v,%v", file, "/select,"+file)
+	// explorer /select,%v
+	c := exec.Command("cmd.exe", "/C", "explorer /select,"+file)
+	output, err := c.CombinedOutput()
+	log.Printf("openDir: %v, %v", string(output), err)
 }

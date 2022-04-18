@@ -309,3 +309,8 @@ func waitFor(w *Watcher, ch chan []File, path string, expectExist bool) bool {
 // 	log.Printf("%v", a)
 // 	// 2022/04/02 00:22:30 [1 3 5 7 9]
 // }
+
+func TestOpenDir(t *testing.T) {
+	file := "C:\\Program Files\\Go\\bin\\go.exe"
+	openDir(file)
+}
