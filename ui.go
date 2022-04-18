@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"path/filepath"
 
 	"fyne.io/fyne/v2"
@@ -13,11 +14,10 @@ import (
 // go build -ldflags "-H windowsgui -s -w"
 
 // TODO
-// - 自动最大化
-// - table各列的宽度能够设置
-// - 输入框支持中文
+// - table各列的宽度能直接拖拽
 // - open和openfolder的实现
 // - 按键自动focus到entry？
+// - 自动最大化
 
 func main() {
 	// watcher
@@ -31,6 +31,8 @@ func main() {
 	req := ""
 	var files []File
 
+	// font env
+	os.Setenv("FYNE_FONT", "./msyh.ttc")
 	// ui
 	a := app.New()
 	w := a.NewWindow("Anything")
@@ -93,7 +95,8 @@ func main() {
 		t,
 	))
 
-	w.Canvas().Focus(entry)
 	w.Resize(fyne.NewSize(800, 600))
+	// w.SetFullScreen(true)
+	w.Canvas().Focus(entry)
 	w.ShowAndRun()
 }
